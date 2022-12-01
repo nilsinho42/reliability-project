@@ -1,6 +1,7 @@
 import pymysql
 import pandas as pd
 import numpy as np
+from datetime import timedelta
 
 # All temperatures in Celsius Degrees
 UPPER_RANGE_T_MOT = 100 
@@ -55,7 +56,7 @@ def get_data():
     sql_query = \
         """ SELECT * 
             FROM reg_comp_senai_resp
-            LIMIT 100000
+            ORDER BY id DESC
         """
     cursor.execute(sql_query)
     results = cursor.fetchall()
@@ -146,12 +147,14 @@ def add_limits_to_dataframe(data):
     data['tempo_60_hz'] = data['carga'].apply(lambda x:0.5 if x=='60_Hz' else 0 )
     return data
 
-def create_failures_dataframe(data_di00):
-    data_di00['t_ar_acima_lim'] = data_di00['limite_t_ar'] < data_di00['t_ar']
-    data_di00['t_oleo_acima_lim'] = data_di00['limite_t_oleo'] < data_di00['t_oleo']
-    data_di00['t_mot_acima_lim'] = data_di00['limite_t_mot'] < data_di00['t_mot']
+def create_failures_dataframe(data, data_di00):
+    #data_di00['t_ar_acima_lim'] = data_di00['limite_t_ar'] < data_di00['t_ar']
+    #data_di00['t_oleo_acima_lim'] = data_di00['limite_t_oleo'] < data_di00['t_oleo']
+    #data_di00['t_mot_acima_lim'] = data_di00['limite_t_mot'] < data_di00['t_mot']
 
-    failures_dict = {}
+    dados_com_limites = data
+    dados_com_limites_di00 = data_di00
+
     t_ar_failure_state = False
     t_oleo_failure_state = False
     t_mot_failure_state = False
@@ -307,9 +310,9 @@ def create_failures_dataframe(data_di00):
     failures_df_ar.drop(index=failures_df_ar.index[-1],axis=0,inplace=True)
     failures_df_ar['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_ar
     for row in failures_df_ar.itertuples():
-    i = row.Index
-    if i+1 < len(failures_df_ar):
-        failures_df_ar['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_ar['tempo_entre_falhas'].iat[i+1] + failures_df_ar['tempo_entre_falhas_acumulado'].iat[i] - failures_df_ar['tempo_sem_operacao'].iat[i+1]
+        i = row.Index
+        if i+1 < len(failures_df_ar):
+            failures_df_ar['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_ar['tempo_entre_falhas'].iat[i+1] + failures_df_ar['tempo_entre_falhas_acumulado'].iat[i] - failures_df_ar['tempo_sem_operacao'].iat[i+1]
 
     failures_df_ar['tempo_entre_falhas_acumulado_horas'] = \
     failures_df_ar['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
@@ -318,9 +321,9 @@ def create_failures_dataframe(data_di00):
     failures_df_oleo.drop(index=failures_df_oleo.index[-1],axis=0,inplace=True)
     failures_df_oleo['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_oleo
     for row in failures_df_oleo.itertuples():
-    i = row.Index
-    if i+1 < len(failures_df_oleo):
-        failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_oleo['tempo_entre_falhas'].iat[i+1] + failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i] - failures_df_oleo['tempo_sem_operacao'].iat[i+1]
+        i = row.Index
+        if i+1 < len(failures_df_oleo):
+            failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_oleo['tempo_entre_falhas'].iat[i+1] + failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i] - failures_df_oleo['tempo_sem_operacao'].iat[i+1]
 
     failures_df_oleo['tempo_entre_falhas_acumulado_horas'] = \
     failures_df_oleo['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
@@ -329,9 +332,9 @@ def create_failures_dataframe(data_di00):
     failures_df_mot.drop(index=failures_df_mot.index[-1],axis=0,inplace=True)
     failures_df_mot['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_mot
     for row in failures_df_mot.itertuples():
-    i = row.Index    
-    if i+1 < len(failures_df_mot):
-        failures_df_mot['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_mot['tempo_entre_falhas'].iat[i+1] + failures_df_mot['tempo_entre_falhas_acumulado'].iat[i] - failures_df_mot['tempo_sem_operacao'].iat[i+1]
+        i = row.Index
+        if i+1 < len(failures_df_mot):
+            failures_df_mot['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_mot['tempo_entre_falhas'].iat[i+1] + failures_df_mot['tempo_entre_falhas_acumulado'].iat[i] - failures_df_mot['tempo_sem_operacao'].iat[i+1]
 
     failures_df_mot['tempo_entre_falhas_acumulado_horas'] = \
     failures_df_mot['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
@@ -343,7 +346,7 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------------------------")
     print("----------- Starting SENAI Reliability Automation for monitoring ------------")
     print("-----------------------------------------------------------------------------")
-    print("--- This automation extract, treat and load data from reg_comp_senai_resp ---")
+    print("--- This automation extracts, treats and loads data from reg_comp_senai   ---")
     print("--- table, which collects events from multiple IoT sensors installed in   ---")
     print("--- an air compressor located in SENAI laboratory. This data is used to   ---")
     print("--- populate two other tables (aggregated data and failures events) and   ---")
@@ -394,10 +397,13 @@ if __name__ == "__main__":
 
     print("-----------------------------------------------------------------------------")
     print("----------- 6. Calculating and creating failures dataframe ------------------")
-    failures_df_oleo, failures_df_ar, failures_df_mot = create_failures_dataframe(cleaned_data_30min_di00)
+    failures_df_oleo, failures_df_ar, failures_df_mot = create_failures_dataframe(cleaned_data_30min, cleaned_data_30min_di00)
+    failures_df_oleo.to_excel("failures_df_oleo.xlsx")
+    failures_df_ar.to_excel("failures_df_ar.xlsx")
+    failures_df_mot.to_excel("failures_df_mot.xlsx")
+
     print("----------- COMPLETED -------------------------------------------------------")
     print(" ")
-
 # TODO: após popular o banco, tratar somente os dados novos (capturados após a última inserção na tabela)
 # TODO: criar nova tabela no banco e popular com os dados
 

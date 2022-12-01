@@ -1,12 +1,13 @@
 import pymysql
 import pandas as pd
+import numpy as np
 
 # All temperatures in Celsius Degrees
 UPPER_RANGE_T_MOT = 100 
 LOWER_RANGE_T_MOT = 20
 
-UPPER_RANGE_T_OIL = 30
-LOWER_RANGE_T_OIL = 100
+UPPER_RANGE_T_OIL = 100
+LOWER_RANGE_T_OIL = 30
 
 LOWER_RANGE_FREQ = 27
 
@@ -54,6 +55,7 @@ def get_data():
     sql_query = \
         """ SELECT * 
             FROM reg_comp_senai_resp
+            LIMIT 100000
         """
     cursor.execute(sql_query)
     results = cursor.fetchall()
@@ -71,11 +73,8 @@ def get_data():
 
 # Variable Selection and Renaming Columns for better undestanding 
 def variable_selection(data):
-    data['t_data'] = data['t_data'].astype(str)
-    data['t_hora'] = data['t_hora'].astype(str)
-    data['hour'] = pd.to_datetime(data['t_hora'])
-
-    data['datetime'] = pd.to_datetime(data['t_data'] + ' ' + data['t_hora'])
+    data['datetime'] = data['t_data'].apply(lambda x: pd.Timestamp(x))
+    data['datetime'] = data['datetime'] + data['t_hora']
     data = data.sort_values(by='datetime')
     data.set_index(pd.DatetimeIndex(data['datetime']))
 
@@ -88,7 +87,16 @@ def variable_selection(data):
 
 # Resampling data in periods of 30 minutes
 def resample_data(data):
-    data = data.resample('30min', on='datetime').mean()
+    data = data.resample('30min', on='datetime').agg(
+        p_comp=('p_comp', 'mean'),
+        t_oleo=('t_oleo', 'mean'),
+        t_mot=('t_mot', 'mean'),
+        t_ar=('t_ar', 'mean'),
+        freq=('freq', 'mean'),
+        potencia=('potencia', 'mean'),
+        vibracao=('vibracao', 'mean'),
+        di_00=('di_00', 'mean')
+    )
     data = data.reset_index(drop=False)
     data['di_00'] = data['di_00'].apply(lambda x:1 if x >0.9 else 0)
     return data
@@ -100,7 +108,7 @@ def get_oper_hours_sum(data):
     for row in data.itertuples():
         i = row.Index
         if i+1 < len(data):
-            tempo_operacao[i+1] = {'tempo':data['datetime'].iat[i+1]-data['datetime'].iat[i], 'di_00': data['di_00'].iat[i]}
+            oper_hours_over_period[i+1] = {'tempo':data['datetime'].iat[i+1]-data['datetime'].iat[i], 'di_00': data['di_00'].iat[i]}
     
     
     oper_hours_over_period_df = pd.DataFrame.from_dict(oper_hours_over_period, orient='index')
@@ -140,16 +148,23 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------------------------")
     print("----------- Starting SENAI Reliability Automation for monitoring ------------")
     print("-----------------------------------------------------------------------------")
+    print("--- This automation extract, treat and load data from reg_comp_senai_resp ---")
+    print("--- table, which collects events from multiple IoT sensors installed in   ---")
+    print("--- an air compressor located in SENAI laboratory. This data is used to   ---")
+    print("--- populate two other tables (aggregated data and failures events) and   ---")
+    print("--- it is also used to fed a dashboard for near-real-time monitoring.     ---")
+    print(" ")
+
     print("----------- 1. Extracting data from reg_comp_senai_resp table ---------------")
     data = get_data()
     raw_data = pd.DataFrame.from_dict(data[0]['result'])
     data = variable_selection(raw_data)
     print("Data Period: ")
-    print("From ", min(data['datetime'], " to ", max(data['datetime']), " today")
-    oper_hours_over_period = get_oper_hours_sum()
+    print("From ", min(data['datetime']), " to ", max(data['datetime']), " today")
+    oper_hours_over_period = get_oper_hours_sum(data)
     print('Operation hours for the entire period: ', oper_hours_over_period)
     print("----------- COMPLETED -------------------------------------------------------")
-    print("-----------------------------------------------------------------------------")
+    print(" ")
 
     print("-----------------------------------------------------------------------------")
     print("----------- 2. Cleaning unwanted data ---------------------------------------")
@@ -157,7 +172,7 @@ if __name__ == "__main__":
     print(f'Events (raw data): \t{raw_data.shape[0]}')
     print(f'Events (after cleanup): \t{cleaned_data.shape[0]}')
     print("----------- COMPLETED -------------------------------------------------------")
-    print("-----------------------------------------------------------------------------")
+    print(" ")
           
     print("-----------------------------------------------------------------------------")
     print("----------- 3. Resampling data for 30 minutes interval ----------------------")
@@ -166,13 +181,22 @@ if __name__ == "__main__":
     print(f'Events (raw data): \t{raw_data.shape[0]}')
     print(f'Events (after cleanup): \t{cleaned_data_30min.shape[0]}')
     print("----------- COMPLETED -------------------------------------------------------")
-    print("-----------------------------------------------------------------------------")
+    print(" ")
 
     print("-----------------------------------------------------------------------------")
     print("----------- 4. Adding limits to dataframe -----------------------------------")
     cleaned_data_30min = add_limits_to_dataframe(cleaned_data_30min)
     print("----------- COMPLETED -------------------------------------------------------")
+    print(" ")
+    print(cleaned_data_30min.head())
+
     print("-----------------------------------------------------------------------------")
-          
+    print("----------- 5. Populating database and saving backup xlsx file --------------")
+    cleaned_data_30min.to_excel("cleaned_data_30_min.xlsx")
+    print("----------- COMPLETED -------------------------------------------------------")
+    print(" ")
+
+
 # TODO: após popular o banco, tratar somente os dados novos (capturados após a última inserção na tabela)
-          
+# TODO: criar nova tabela no banco e popular com os dados
+

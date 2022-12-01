@@ -118,13 +118,16 @@ def get_oper_hours_sum(data):
 
 # Data cleaning
 def clean_data(data):
-    data = data[data['di_00']!=AIR_COMPRESSOR_OFF_STATUS]
     data = data[data['t_mot']<UPPER_RANGE_T_MOT]
     data = data[data['t_mot']>LOWER_RANGE_T_MOT]
     data = data[data['t_oleo']<UPPER_RANGE_T_OIL]
     data = data[data['t_oleo']>LOWER_RANGE_T_OIL]
     data = data[data['freq']>LOWER_RANGE_FREQ]
-    return data
+    
+    data_di00 = data
+    data = data[data['di_00']!=AIR_COMPRESSOR_OFF_STATUS]
+
+    return data, data_di00
 
 def add_limits_to_dataframe(data):
     data['limite_t_mot'] = UPPER_LIMIT_T_MOT
@@ -142,6 +145,198 @@ def add_limits_to_dataframe(data):
     data['tempo_30_hz'] = data['carga'].apply(lambda x:0.5 if x=='30_Hz' else 0 )
     data['tempo_60_hz'] = data['carga'].apply(lambda x:0.5 if x=='60_Hz' else 0 )
     return data
+
+def create_failures_dataframe(data_di00):
+    data_di00['t_ar_acima_lim'] = data_di00['limite_t_ar'] < data_di00['t_ar']
+    data_di00['t_oleo_acima_lim'] = data_di00['limite_t_oleo'] < data_di00['t_oleo']
+    data_di00['t_mot_acima_lim'] = data_di00['limite_t_mot'] < data_di00['t_mot']
+
+    failures_dict = {}
+    t_ar_failure_state = False
+    t_oleo_failure_state = False
+    t_mot_failure_state = False
+
+    valor_max = 0
+    failures_dict_ar = {}
+    failures_dict_oleo = {}
+    failures_dict_mot = {}
+
+    count = 0
+    for i, row in dados_com_limites.iterrows():
+        if row['t_ar_acima_lim'] == True:
+            if t_ar_failure_state == False: 
+                count = count + 1
+                t_ar_failure_state = True
+                failures_dict_ar[count] = {'t_start': row['datetime'], 'var_failure':'t_ar'}
+            if row['t_ar'] > valor_max: valor_max = row['t_ar'] 
+
+        if row['t_ar_acima_lim'] == False and t_ar_failure_state == True:
+            failures_dict_ar[count].update({'valor_max': valor_max, 't_stop':row['datetime']})
+            t_ar_failure_state = False
+
+    for i, row in dados_com_limites.iterrows():
+        if row['t_oleo_acima_lim'] == True:
+            if t_oleo_failure_state == False: 
+                count = count + 1
+                t_oleo_failure_state = True
+                failures_dict_oleo[count] = {'t_start': row['datetime'], 'var_failure':'t_oleo'}
+            if row['t_oleo'] > valor_max: valor_max = row['t_oleo'] 
+
+        if row['t_oleo_acima_lim'] == False and t_oleo_failure_state == True:
+            failures_dict_oleo[count].update({'valor_max': valor_max, 't_stop':row['datetime']})
+            t_oleo_failure_state = False
+
+    for i, row in dados_com_limites.iterrows():
+        if row['t_mot_acima_lim'] == True:
+            if t_mot_failure_state == False: 
+                count = count + 1
+                t_mot_failure_state = True
+                failures_dict_mot[count] = {'t_start': row['datetime'], 'var_failure':'t_mot'}
+            if row['t_mot'] > valor_max: valor_max = row['t_mot'] 
+
+        if row['t_mot_acima_lim'] == False and t_mot_failure_state == True:
+            failures_dict_mot[count].update({'valor_max': valor_max, 't_stop':row['datetime']})
+            t_mot_failure_state = False
+
+    failures_df_ar = pd.DataFrame.from_dict(failures_dict_ar, orient='index')
+    failures_df_ar['tempo_em_falha'] = failures_df_ar['t_stop'] - failures_df_ar['t_start']
+    failures_df_ar = failures_df_ar[['t_start', 't_stop', 'tempo_em_falha', 'var_failure', 'valor_max']].sort_values('t_start').reset_index(drop=True)
+    tempo_ate_primeira_falha_ar = failures_df_ar['t_start'].iloc[0] - dados_com_limites['datetime'].iloc[0]
+
+    failures_df_mot = pd.DataFrame.from_dict(failures_dict_mot, orient='index')
+    failures_df_mot['tempo_em_falha'] = failures_df_mot['t_stop'] - failures_df_mot['t_start']
+    failures_df_mot = failures_df_mot[['t_start', 't_stop', 'tempo_em_falha', 'var_failure', 'valor_max']].sort_values('t_start').reset_index(drop=True)
+    tempo_ate_primeira_falha_mot = failures_df_mot['t_start'].iloc[0] - dados_com_limites['datetime'].iloc[0]
+
+    failures_df_oleo = pd.DataFrame.from_dict(failures_dict_oleo, orient='index')
+    failures_df_oleo['tempo_em_falha'] = failures_df_oleo['t_stop'] - failures_df_oleo['t_start']
+    failures_df_oleo = failures_df_oleo[['t_start', 't_stop', 'tempo_em_falha', 'var_failure', 'valor_max']].sort_values('t_start').reset_index(drop=True)
+    tempo_ate_primeira_falha_oleo = failures_df_oleo['t_start'].iloc[0] - dados_com_limites['datetime'].iloc[0]
+    
+    failures_df_oleo['tempo_sem_operacao'] = timedelta(seconds = 0)
+    for row in failures_df_oleo.itertuples():
+        i = row.Index
+
+        if i + 1 < len(failures_df_oleo):
+            temp_df = dados_com_limites_di00[(dados_com_limites_di00['datetime'] > failures_df_oleo['t_stop'].iat[i]) & (dados_com_limites_di00['datetime'] < failures_df_oleo['t_start'].iat[i+1])]
+            temp_df = temp_df[temp_df['di_00']==1].reset_index(drop=True)
+
+            if len(temp_df) > 0:
+                for j, jrow in temp_df.iterrows():
+                    if j+1 < len(temp_df):
+                        failures_df_oleo['tempo_sem_operacao'].iat[i] = temp_df['datetime'].iat[j+1] - temp_df['datetime'].iat[j] + failures_df_oleo['tempo_sem_operacao'].iat[i] 
+
+    failures_df_oleo['tempo_em_falha_real'] = failures_df_oleo['tempo_em_falha'] - failures_df_oleo['tempo_sem_operacao']
+    tempo_sem_operacao_oleo = failures_df_oleo.groupby('var_failure')['tempo_sem_operacao'].sum()
+    print("Tempo SEM Operação Óleo", round(tempo_sem_operacao_oleo[0].total_seconds()/3600,2), "horas")
+    
+    failures_df_ar['tempo_sem_operacao'] = timedelta(seconds = 0)
+    for row in failures_df_ar.itertuples():
+        i = row.Index
+
+        if i + 1 < len(failures_df_ar):
+            temp_df = dados_com_limites_di00[(dados_com_limites_di00['datetime'] > failures_df_ar['t_stop'].iat[i]) & (dados_com_limites_di00['datetime'] < failures_df_ar['t_start'].iat[i+1])]
+            temp_df = temp_df[temp_df['di_00']==1].reset_index(drop=True)
+
+            if len(temp_df) > 0:
+                for j, jrow in temp_df.iterrows():
+                    if j+1 < len(temp_df):
+                        failures_df_ar['tempo_sem_operacao'].iat[i] = temp_df['datetime'].iat[j+1] - temp_df['datetime'].iat[j] + failures_df_ar['tempo_sem_operacao'].iat[i] 
+    
+    failures_df_ar['tempo_em_falha_real'] = failures_df_ar['tempo_em_falha'] - failures_df_ar['tempo_sem_operacao']
+    tempo_sem_operacao_ar = failures_df_ar.groupby('var_failure')['tempo_sem_operacao'].sum()
+    print("Tempo SEM Operação Ar", round(tempo_sem_operacao_ar[0].total_seconds()/3600,2), "horas")
+    
+    failures_df_mot['tempo_sem_operacao'] = timedelta(seconds = 0)
+    for row in failures_df_mot.itertuples():
+        i = row.Index
+
+        if i + 1 < len(failures_df_mot):
+            temp_df = dados_com_limites_di00[(dados_com_limites_di00['datetime'] > failures_df_mot['t_stop'].iat[i]) & (dados_com_limites_di00['datetime'] < failures_df_mot['t_start'].iat[i+1])]
+            temp_df = temp_df[temp_df['di_00']==1].reset_index(drop=True)
+
+            if len(temp_df) > 0:
+                for j, jrow in temp_df.iterrows():
+                    if j+1 < len(temp_df):
+                        failures_df_mot['tempo_sem_operacao'].iat[i] = temp_df['datetime'].iat[j+1] - temp_df['datetime'].iat[j] + failures_df_mot['tempo_sem_operacao'].iat[i] 
+    
+    failures_df_mot['tempo_em_falha_real'] = failures_df_mot['tempo_em_falha'] - failures_df_mot['tempo_sem_operacao']
+    tempo_sem_operacao_ar = failures_df_mot.groupby('var_failure')['tempo_sem_operacao'].sum()
+    print("Tempo SEM Operação Motor", round(tempo_sem_operacao_ar[0].total_seconds()/3600,2), "horas")
+    
+    # Cálculo de Tempo Médio entre falhas
+    failures_df_ar['tempo_entre_falhas'] = 0
+    for row in failures_df_ar.itertuples():
+        i = row.Index
+        if i+1 < len(failures_df_ar):
+            failures_df_ar['tempo_entre_falhas'].iat[i] = failures_df_ar['t_start'].iat[i+1] - failures_df_ar['t_stop'].iat[i]
+
+
+    failures_df_oleo['tempo_entre_falhas'] = 0
+    for row in failures_df_oleo.itertuples():
+        i = row.Index    
+        if i+1 < len(failures_df_oleo):
+            failures_df_oleo['tempo_entre_falhas'].iat[i] = failures_df_oleo['t_start'].iat[i+1] - failures_df_oleo['t_stop'].iat[i]
+
+    failures_df_mot['tempo_entre_falhas'] = 0
+    for row in failures_df_mot.itertuples():
+        i = row.Index
+        if i+1 < len(failures_df_mot):
+            failures_df_mot['tempo_entre_falhas'].iat[i] = failures_df_mot['t_start'].iat[i+1] - failures_df_mot['t_stop'].iat[i]
+            
+    # Cálculo do tempo de falha acumulado por Variável
+    failures_df_oleo['tempo_falha_acumulado'] = timedelta(seconds=0)
+    for row in failures_df_oleo.itertuples():
+        i = row.Index
+        if i+1 < len(failures_df_oleo):
+            failures_df_oleo['tempo_falha_acumulado'].iat[i+1] = failures_df_oleo['tempo_em_falha'].iat[i+1] + failures_df_oleo['tempo_falha_acumulado'].iat[i]
+
+    failures_df_ar['tempo_falha_acumulado'] = timedelta(seconds=0)
+    for row in failures_df_ar.itertuples():
+        i = row.Index
+        if i+1 < len(failures_df_ar):
+            failures_df_ar['tempo_falha_acumulado'].iat[i+1] = failures_df_ar['tempo_em_falha'].iat[i+1] + failures_df_ar['tempo_falha_acumulado'].iat[i]
+
+    failures_df_mot['tempo_falha_acumulado'] = timedelta(seconds=0)
+    for row in failures_df_mot.itertuples():
+        i = row.Index
+        if i+1 < len(failures_df_mot):
+            failures_df_mot['tempo_falha_acumulado'].iat[i+1] = failures_df_mot['tempo_em_falha'].iat[i+1] + failures_df_mot['tempo_falha_acumulado'].iat[i]
+
+    ##### AR #####
+    failures_df_ar.drop(index=failures_df_ar.index[-1],axis=0,inplace=True)
+    failures_df_ar['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_ar
+    for row in failures_df_ar.itertuples():
+    i = row.Index
+    if i+1 < len(failures_df_ar):
+        failures_df_ar['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_ar['tempo_entre_falhas'].iat[i+1] + failures_df_ar['tempo_entre_falhas_acumulado'].iat[i] - failures_df_ar['tempo_sem_operacao'].iat[i+1]
+
+    failures_df_ar['tempo_entre_falhas_acumulado_horas'] = \
+    failures_df_ar['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
+
+    ##### OLEO #####
+    failures_df_oleo.drop(index=failures_df_oleo.index[-1],axis=0,inplace=True)
+    failures_df_oleo['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_oleo
+    for row in failures_df_oleo.itertuples():
+    i = row.Index
+    if i+1 < len(failures_df_oleo):
+        failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_oleo['tempo_entre_falhas'].iat[i+1] + failures_df_oleo['tempo_entre_falhas_acumulado'].iat[i] - failures_df_oleo['tempo_sem_operacao'].iat[i+1]
+
+    failures_df_oleo['tempo_entre_falhas_acumulado_horas'] = \
+    failures_df_oleo['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
+
+    ##### MOTOR #####
+    failures_df_mot.drop(index=failures_df_mot.index[-1],axis=0,inplace=True)
+    failures_df_mot['tempo_entre_falhas_acumulado'] = timedelta(seconds=0) + tempo_ate_primeira_falha_mot
+    for row in failures_df_mot.itertuples():
+    i = row.Index    
+    if i+1 < len(failures_df_mot):
+        failures_df_mot['tempo_entre_falhas_acumulado'].iat[i+1] = failures_df_mot['tempo_entre_falhas'].iat[i+1] + failures_df_mot['tempo_entre_falhas_acumulado'].iat[i] - failures_df_mot['tempo_sem_operacao'].iat[i+1]
+
+    failures_df_mot['tempo_entre_falhas_acumulado_horas'] = \
+    failures_df_mot['tempo_entre_falhas_acumulado'].apply(lambda x: np.round(x.total_seconds()/3600, 2))
+
+    return failures_df_oleo, failures_df_ar, failures_df_mot
 
 # MAIN
 if __name__ == "__main__":
@@ -168,7 +363,7 @@ if __name__ == "__main__":
 
     print("-----------------------------------------------------------------------------")
     print("----------- 2. Cleaning unwanted data ---------------------------------------")
-    cleaned_data = clean_data(data)
+    cleaned_data, cleaned_data_di00 = clean_data(data)
     print(f'Events (raw data): \t{raw_data.shape[0]}')
     print(f'Events (after cleanup): \t{cleaned_data.shape[0]}')
     print("----------- COMPLETED -------------------------------------------------------")
@@ -177,7 +372,7 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------------------------")
     print("----------- 3. Resampling data for 30 minutes interval ----------------------")
     data_30min = resample_data(data)
-    cleaned_data_30min = clean_data(data_30min)
+    cleaned_data_30min, cleaned_data_30min_di00 = clean_data(data_30min)
     print(f'Events (raw data): \t{raw_data.shape[0]}')
     print(f'Events (after cleanup): \t{cleaned_data_30min.shape[0]}')
     print("----------- COMPLETED -------------------------------------------------------")
@@ -186,6 +381,7 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------------------------")
     print("----------- 4. Adding limits to dataframe -----------------------------------")
     cleaned_data_30min = add_limits_to_dataframe(cleaned_data_30min)
+    cleaned_data_30min_di00 = add_limits_to_dataframe(cleaned_data_30min_di00)
     print("----------- COMPLETED -------------------------------------------------------")
     print(" ")
     print(cleaned_data_30min.head())
@@ -196,6 +392,11 @@ if __name__ == "__main__":
     print("----------- COMPLETED -------------------------------------------------------")
     print(" ")
 
+    print("-----------------------------------------------------------------------------")
+    print("----------- 6. Calculating and creating failures dataframe ------------------")
+    failures_df_oleo, failures_df_ar, failures_df_mot = create_failures_dataframe(cleaned_data_30min_di00)
+    print("----------- COMPLETED -------------------------------------------------------")
+    print(" ")
 
 # TODO: após popular o banco, tratar somente os dados novos (capturados após a última inserção na tabela)
 # TODO: criar nova tabela no banco e popular com os dados

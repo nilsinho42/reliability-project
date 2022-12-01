@@ -1,7 +1,8 @@
-import pymysql
+# import pymysql
 import pandas as pd
 import numpy as np
 from datetime import timedelta
+import sqlalchemy as db
 
 # All temperatures in Celsius Degrees
 UPPER_RANGE_T_MOT = 100 
@@ -30,47 +31,29 @@ class MySQLConnection:
         self.host = "127.0.0.1"
         self.db_name = "SENAI_4_0"
 
-    def connect(self):
-        conn = pymysql.connect(
-            host=self.host,
-            user=self.db_user,
-            password=self.db_password,
-            db=self.db_name,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return conn
+    def save_data(self, data, table_name):
+        engine = db.create_engine(
+            "mysql+pymysql://{user}:{pw}@{host}/{db}".format(host=self.host,
+                                                             db=self.db_name,
+                                                             user=self.db_user,
+                                                             pw=self.db_password))
+        conn = engine.connect()
+        data.to_sql(table_name, engine, if_exists="replace", index=False)
+    def get_data(self, table_name):
+        engine = db.create_engine(
+            "mysql+pymysql://{user}:{pw}@{host}/{db}".format(host=self.host,
+                                                             db=self.db_name,
+                                                             user=self.db_user,
+                                                             pw=self.db_password))
+        conn = engine.connect()
+        metadata = db.MetaData()
+        data = db.Table('reg_comp_senai_resp', metadata, autoload=True, autoload_with=engine)
+        resultproxy = conn.execute("SELECT * FROM {table}".format(table=table_name))
+        resultset = resultproxy.fetchall()
+
+        return resultset
 
 
-def get_data():
-    mysql = MySQLConnection()
-    try:
-        conn = mysql.connect()
-    except Exception as e:
-        return {
-            "result": None,
-            "detail": e.args[1],
-        }, 500
-
-    cursor = conn.cursor()
-    sql_query = \
-        """ SELECT * 
-            FROM reg_comp_senai_resp
-            ORDER BY id DESC
-        """
-    cursor.execute(sql_query)
-    results = cursor.fetchall()
-
-    if len(results) > 0:
-        return {
-            "result": results,
-            "detail": "",
-        }, 200
-    else:
-        return {
-            "result": None,
-            "detail": "Query returned no results",
-        }, 404
 
 # Variable Selection and Renaming Columns for better undestanding 
 def variable_selection(data):
@@ -354,11 +337,11 @@ if __name__ == "__main__":
     print(" ")
 
     print("----------- 1. Extracting data from reg_comp_senai_resp table ---------------")
-    data = get_data()
-    raw_data = pd.DataFrame.from_dict(data[0]['result'])
+    mysql = MySQLConnection()
+    data = MySQLConnection.get_data(mysql, 'reg_comp_senai_resp')
+    raw_data = pd.DataFrame.from_dict(data)
     data = variable_selection(raw_data)
-    print("Data Period: ")
-    print("From ", min(data['datetime']), " to ", max(data['datetime']), " today")
+    print("Data Period: From ", min(data['datetime']), " to ", max(data['datetime']), " today")
     oper_hours_over_period = get_oper_hours_sum(data)
     print('Operation hours for the entire period: ', oper_hours_over_period)
     print("----------- COMPLETED -------------------------------------------------------")
@@ -391,6 +374,7 @@ if __name__ == "__main__":
 
     print("-----------------------------------------------------------------------------")
     print("----------- 5. Populating database and saving backup xlsx file --------------")
+    MySQLConnection.save_data(mysql, cleaned_data_30min, "data_agg_30min")
     cleaned_data_30min.to_excel("cleaned_data_30_min.xlsx")
     print("----------- COMPLETED -------------------------------------------------------")
     print(" ")
@@ -398,10 +382,12 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------------------------")
     print("----------- 6. Calculating and creating failures dataframe ------------------")
     failures_df_oleo, failures_df_ar, failures_df_mot = create_failures_dataframe(cleaned_data_30min, cleaned_data_30min_di00)
+    MySQLConnection.save_data(mysql, failures_df_oleo, "failures_df_oleo")
+    MySQLConnection.save_data(mysql, failures_df_ar, "failures_df_ar")
+    MySQLConnection.save_data(mysql, failures_df_mot, "failures_df_mot")
     failures_df_oleo.to_excel("failures_df_oleo.xlsx")
     failures_df_ar.to_excel("failures_df_ar.xlsx")
     failures_df_mot.to_excel("failures_df_mot.xlsx")
-
     print("----------- COMPLETED -------------------------------------------------------")
     print(" ")
 # TODO: após popular o banco, tratar somente os dados novos (capturados após a última inserção na tabela)

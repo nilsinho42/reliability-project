@@ -449,7 +449,33 @@ intens = make_subplots()
 intens.add_trace(trace1)
 
 # TAB 1 (Sistema Completo) - GRÁFICO DE CONFIABILIDADE
-#TODO
+vals=[]
+max_failure = max(max(times))
+
+tn = max_failure
+confiab_x_80_percent = 0
+confiab_y_80_percent = 0
+
+confiab_x = np.linspace(0, 1000, 10000, endpoint=True)
+confiab_y = []
+for t in confiab_x:
+    p = math.exp((1/alpha**beta)*((-(tn+t)**beta)+tn**beta))
+    confiab_y.append(p*100)
+    if np.round(p, 2) > 0.79 and np.round(p, 2) < 0.81:
+        confiab_x_80_percent = t
+        confiab_y_80_percent = 100*p
+    if p < 0.001:
+        confiab_x = confiab_x[:len(confiab_y)]
+        break
+
+trace2 = go.Scatter(x=confiab_x, y=confiab_y, mode = 'lines', line=dict(color='royalblue', width=1))
+trace3 = go.Scatter(x=[0, confiab_x[-1]], y=[confiab_y_80_percent, confiab_y_80_percent], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+trace4 = go.Scatter(x=[confiab_x_80_percent, confiab_x_80_percent], y=[100, 0], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+
+confiab = make_subplots()
+confiab.add_trace(trace2)
+confiab.add_trace(trace3)
+confiab.add_trace(trace4)
 
 # TAB 2 (Temperatura Motor) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_motor]
@@ -491,7 +517,33 @@ intens_motor = make_subplots()
 intens_motor.add_trace(trace1)
 
 # TAB 2 (Temperatura Motor) - GRÁFICO DE CONFIABILIDADE
-# TODO
+vals_mot=[]
+max_failure_mot = max(max(times))
+
+tn = max_failure_mot
+confiab_x_mot_80_percent = 0
+confiab_y_mot_80_percent = 0
+
+confiab_x_mot = np.linspace(0, 1000, 10000, endpoint=True)
+confiab_y_mot = []
+for t in confiab_x_mot:
+    p = math.exp((1/alpha**beta)*((-(tn+t)**beta)+tn**beta))
+    confiab_y_mot.append(p*100)
+    if np.round(p, 2) > 0.79 and np.round(p, 2) < 0.81:
+        confiab_x_mot_80_percent = t
+        confiab_y_mot_80_percent = 100*p
+    if p < 0.001:
+        confiab_x_mot = confiab_x_mot[:len(confiab_y_mot)]
+        break
+
+trace2 = go.Scatter(x=confiab_x_mot, y=confiab_y_mot, mode = 'lines', line=dict(color='royalblue', width=1))
+trace3 = go.Scatter(x=[0, confiab_x_mot[-1]], y=[confiab_y_mot_80_percent, confiab_y_mot_80_percent], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+trace4 = go.Scatter(x=[confiab_x_mot_80_percent, confiab_x_mot_80_percent], y=[100, 0], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+
+confiab_mot = make_subplots()
+confiab_mot.add_trace(trace2)
+confiab_mot.add_trace(trace3)
+confiab_mot.add_trace(trace4)
 
 # TAB 3 (Temperatura Óleo) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_oleo]
@@ -537,24 +589,29 @@ vals_oil=[]
 max_failure_oil = max(max(times))
 
 tn = max_failure_oil
+confiab_x_oil_80_percent = 0
+confiab_y_oil_80_percent = 0
+
 confiab_x_oil = np.linspace(0, 1000, 10000, endpoint=True)
+confiab_y_oil = []
 for t in confiab_x_oil:
     p = math.exp((1/alpha**beta)*((-(tn+t)**beta)+tn**beta))
-    confiab_y_oil.append(p)
+    confiab_y_oil.append(p*100)
     if np.round(p, 2) > 0.79 and np.round(p, 2) < 0.81:
         confiab_x_oil_80_percent = t
-        confiab_y_oil_80_percent = y
+        confiab_y_oil_80_percent = 100*p
+    if p < 0.001:
+        confiab_x_oil = confiab_x_oil[:len(confiab_y_oil)]
+        break
 
-trace1 = go.Scatter(x=confiab_x_oil, y=confiab_y_oil, name='Real', mode='markers', marker=dict(color='black', size=4))
-trace2 = go.Scatter(x=confiab_x_oil, y=confiab_y_oil, mode = 'lines', name='Confiabilidade Óleo', line=dict(color='royalblue', width=1))
-trace3 = go.Scatter(x=x_upper_ci_air, y=y_upper_ci_air, mode = 'lines', name='Confiabilidade Óleo - 80% x', line=dict(color='royalblue', width=1, dash='dash'))
-trace3 = go.Scatter(x=x_upper_ci_air, y=y_upper_ci_air, mode = 'lines', name='Confiabilidade Óleo - 80% Y', line=dict(color='royalblue', width=1, dash='dash'))
+trace2 = go.Scatter(x=confiab_x_oil, y=confiab_y_oil, mode = 'lines', line=dict(color='royalblue', width=1))
+trace3 = go.Scatter(x=[0, confiab_x_oil[-1]], y=[confiab_y_oil_80_percent, confiab_y_oil_80_percent], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+trace4 = go.Scatter(x=[confiab_x_oil_80_percent, confiab_x_oil_80_percent], y=[100, 0], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
 
 confiab_oil = make_subplots()
-confiab_oil.add_trace(trace1)
 confiab_oil.add_trace(trace2)
-confiab_oil.add_trace(fig.add_hline(y=confiab_y_oil_80_percent))
-confiab_oil.add_trace(fig.add_vline(x=confiab_x_oil_80_percent))
+confiab_oil.add_trace(trace3)
+confiab_oil.add_trace(trace4)
 
 # TAB 4 (Temperatura Ar) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_ar]
@@ -596,7 +653,33 @@ intens_air = make_subplots()
 intens_air.add_trace(trace1)
 
 # TAB 4 (Temperatura Ar) - GRÁFICO DE CONFIABILIDADE
-#TODO
+vals_air=[]
+max_failure_air = max(max(times))
+
+tn = max_failure_air
+confiab_x_air_80_percent = 0
+confiab_y_air_80_percent = 0
+
+confiab_x_air = np.linspace(0, 1000, 10000, endpoint=True)
+confiab_y_air = []
+for t in confiab_x_air:
+    p = math.exp((1/alpha**beta)*((-(tn+t)**beta)+tn**beta))
+    confiab_y_air.append(p*100)
+    if np.round(p, 2) > 0.79 and np.round(p, 2) < 0.81:
+        confiab_x_air_80_percent = t
+        confiab_y_air_80_percent = 100*p
+    if p < 0.001:
+        confiab_x_air = confiab_x_air[:len(confiab_y_air)]
+        break
+
+trace2 = go.Scatter(x=confiab_x_air, y=confiab_y_air, mode = 'lines', line=dict(color='royalblue', width=1))
+trace3 = go.Scatter(x=[0, confiab_x_air[-1]], y=[confiab_y_air_80_percent, confiab_y_air_80_percent], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+trace4 = go.Scatter(x=[confiab_x_air_80_percent, confiab_x_air_80_percent], y=[100, 0], mode = 'lines', line=dict(color='royalblue', width=1, dash = "dash"))
+
+confiab_air = make_subplots()
+confiab_air.add_trace(trace2)
+confiab_air.add_trace(trace3)
+confiab_air.add_trace(trace4)
 
 # TAB 2 (Temperatura Motor) - Valores Agg 30 min
 
@@ -788,7 +871,8 @@ mcf_fig.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Número Acumulado de Eventos',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < UPPER_LIMIT_T_AIR and t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL and t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT) else 'rgba(100,00,00,0.2)'
 intens.update_layout(height = 400,
@@ -800,7 +884,20 @@ intens.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Intensidade',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
+
+confiab.update_layout(height = 400,
+                  width = 600,
+                  title='Confiabilidade',
+                  title_x=0.5,
+                  title_y=1,
+                  title_xanchor='center',
+                  xaxis_title='Tempo [h]',
+                  yaxis_title='Percentual [%]',
+                  margin=dict(t=30, b=30),
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 # TAB 2 (Temperatura Motor) - Ajuste de Layout dos Gráficos
 color = 'rgba(00,100,00,0.12)' if (t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT) else 'rgba(100,00,00,0.2)'
@@ -813,7 +910,8 @@ mcf_fig_motor.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Número Acumulado de Eventos',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 intens_motor.update_layout(height = 400,
                   width = 600,
@@ -824,7 +922,20 @@ intens_motor.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Intensidade',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
+
+confiab_mot.update_layout(height = 400,
+                  width = 600,
+                  title='Confiabilidade',
+                  title_x=0.5,
+                  title_y=1,
+                  title_xanchor='center',
+                  xaxis_title='Tempo [h]',
+                  yaxis_title='Percentual [%]',
+                  margin=dict(t=30, b=30),
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 # TAB 3 (Temperatura Óleo) - Ajuste de Layout dos Gráficos
 color = 'rgba(00,100,00,0.12)' if (t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL) else 'rgba(100,00,00,0.2)'
@@ -837,7 +948,8 @@ mcf_fig_oil.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Número Acumulado de Eventos',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 intens_oil.update_layout(height = 400,
                   width = 600,
@@ -848,7 +960,20 @@ intens_oil.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Intensidade',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
+
+confiab_oil.update_layout(height = 400,
+                  width = 600,
+                  title='Confiabilidade',
+                  title_x=0.5,
+                  title_y=1,
+                  title_xanchor='center',
+                  xaxis_title='Tempo [h]',
+                  yaxis_title='Percentual [%]',
+                  margin=dict(t=30, b=30),
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 # TAB 4 (Temperatura Ar) - Ajuste de Layout dos Gráficos
 color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < UPPER_LIMIT_T_AIR) else 'rgba(100,00,00,0.2)'
@@ -861,7 +986,8 @@ mcf_fig_air.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Número Acumulado de Eventos',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 intens_air.update_layout(height = 400,
                   width = 600,
@@ -872,7 +998,20 @@ intens_air.update_layout(height = 400,
                   xaxis_title='Tempo [h]',
                   yaxis_title='Intensidade',
                   margin=dict(t=30, b=30),
-                  plot_bgcolor=color)
+                  plot_bgcolor=color,
+                  showlegend=False)
+
+confiab_air.update_layout(height = 400,
+                  width = 600,
+                  title='Confiabilidade',
+                  title_x=0.5,
+                  title_y=1,
+                  title_xanchor='center',
+                  xaxis_title='Tempo [h]',
+                  yaxis_title='Percentual [%]',
+                  margin=dict(t=30, b=30),
+                  plot_bgcolor=color,
+                  showlegend=False)
 
 # Setup the style from the link:
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -892,16 +1031,16 @@ intens_graph = dcc.Graph(
         className="four columns" 
     )
 
-# confiab_graph = dcc.Graph(
-#         id='confiab',
-#         figure=confiab,
-#         className="four columns" 
-#     )
+confiab_graph = dcc.Graph(
+        id='confiab',
+        figure=confiab,
+        className="four columns"
+    )
 
 row_complete = html.Div(children=[
                             html.Div(children = mcf_fig_graph, style={'width': '33%', 'display': 'inline-block'}),
                             html.Div(children = intens_graph, style={'width': '33%', 'display': 'inline-block'}),
-                            html.Div(children = intens_graph, style={'width': '33%', 'display': 'inline-block'})
+                            html.Div(children = confiab_graph, style={'width': '33%', 'display': 'inline-block'})
                                     ])
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -924,16 +1063,16 @@ intens_graph_motor = dcc.Graph(
         className="four columns" 
     )
 
-# confiab_graph_motor = dcc.Graph(
-#         id='confiab_motor',
-#         figure=confiab_motor,
-#         className="four columns" 
-#     )
+confiab_graph_motor = dcc.Graph(
+        id='confiab_mot',
+        figure=confiab_mot,
+        className="four columns"
+    )
 
 row_complete_motor = html.Div(children=[
                             html.Div(children = mcf_fig_graph_motor, style={'width': '33%', 'display': 'inline-block'}),
                             html.Div(children = intens_graph_motor, style={'width': '33%', 'display': 'inline-block'}),
-                            html.Div(children = intens_graph_motor, style={'width': '33%', 'display': 'inline-block'})
+                            html.Div(children = confiab_graph_motor, style={'width': '33%', 'display': 'inline-block'})
                                     ])
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # TAB 3 (Temperatura Óleo)
@@ -956,16 +1095,16 @@ intens_graph_oil = dcc.Graph(
         className="four columns" 
     )
 
-# confiab_graph_oil = dcc.Graph(
-#         id='confiab_oil',
-#         figure=confiab_oil,
-#         className="four columns" 
-#     )
+confiab_graph_oil = dcc.Graph(
+        id='confiab_oil',
+        figure=confiab_oil,
+        className="four columns"
+    )
 
 row_complete_oil = html.Div(children=[
                             html.Div(children = mcf_fig_graph_oil, style={'width': '33%', 'display': 'inline-block'}),
                             html.Div(children = intens_graph_oil, style={'width': '33%', 'display': 'inline-block'}),
-                            html.Div(children = intens_graph_oil, style={'width': '33%', 'display': 'inline-block'})
+                            html.Div(children = confiab_graph_oil, style={'width': '33%', 'display': 'inline-block'})
                                     ])
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -988,16 +1127,16 @@ intens_graph_air = dcc.Graph(
         className="four columns" 
     )
 
-# confiab_graph_air = dcc.Graph(
-#         id='confiab_air',
-#         figure=confiab_air,
-#         className="four columns" 
-#     )
+confiab_graph_air = dcc.Graph(
+        id='confiab_air',
+        figure=confiab_air,
+        className="four columns"
+    )
 
 row_complete_air = html.Div(children=[
                             html.Div(children = mcf_fig_graph_air, style={'width': '33%', 'display': 'inline-block'}),
                             html.Div(children = intens_graph_air, style={'width': '33%', 'display': 'inline-block'}),
-                            html.Div(children = intens_graph_air, style={'width': '33%', 'display': 'inline-block'})
+                            html.Div(children = confiab_graph_air, style={'width': '33%', 'display': 'inline-block'})
                                     ])
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

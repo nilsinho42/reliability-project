@@ -1,7 +1,7 @@
 # import pymysql
 import pandas as pd
 import numpy as np
-from datetime import timedelta
+from datetime import timedelta, datetime
 import sqlalchemy as db
 
 # DASH and PLOTLY library
@@ -13,7 +13,6 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 
 # Reliability library
-from reliability.Repairable_systems import MCF_nonparametric
 from reliability.Repairable_systems import MCF_parametric
 
 # All temperatures in Celsius Degrees
@@ -454,7 +453,6 @@ intens.add_trace(trace1)
 # TAB 2 (Temperatura Motor) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_motor]
 obj_motor = MCF_parametric(data=times)
-plt.show()
 
 alpha_motor = obj_motor.results['Point Estimate'][0]
 beta_motor = obj_motor.results['Point Estimate'][1]
@@ -497,7 +495,6 @@ intens_motor.add_trace(trace1)
 # TAB 3 (Temperatura Óleo) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_oleo]
 obj_oil = MCF_parametric(data=times)
-plt.show()
 
 alpha_oil = obj_oil.results['Point Estimate'][0]
 beta_oil = obj_oil.results['Point Estimate'][1]
@@ -540,7 +537,6 @@ intens_oil.add_trace(trace1)
 # TAB 4 (Temperatura Ar) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_ar]
 obj_air = MCF_parametric(data=times)
-plt.show()
 
 alpha_air = obj_air.results['Point Estimate'][0]
 beta_air = obj_air.results['Point Estimate'][1]
@@ -581,6 +577,12 @@ intens_air.add_trace(trace1)
 #TODO
 
 # TAB 2 (Temperatura Motor) - Valores Agg 30 min
+
+cleaned_data['t_mot'] = pd.to_numeric(cleaned_data['t_mot'])
+cleaned_data['t_ar'] = pd.to_numeric(cleaned_data['t_ar'])
+cleaned_data['t_oleo'] = pd.to_numeric(cleaned_data['t_oleo'])
+
+dados = cleaned_data
 t_mot_90quartil = dados[['t_mot', 'datetime']].resample('30min', on='datetime').agg(func='quantile', **{'q':[0.9]})['t_mot'].reset_index()
 t_mot_90quartil.columns = ['datetime90quartil','level','90quartil']
 
@@ -595,11 +597,11 @@ t_mot_df['10quartil'] = t_mot_df['media']-t_mot_df['10quartil']
 t_mot_df['90quartil'] = -t_mot_df['media']+t_mot_df['90quartil']
 
 limite_t_mot_array = np.empty(len(t_mot_df.index))
-limite_t_mot_array.fill(limite_t_mot)
+limite_t_mot_array.fill(UPPER_LIMIT_T_MOT)
 
 t_mot_index = np.arange(1, len(t_mot_media)+1, 1)
 
-color = 'rgba(00,100,00,0.12)' if t_mot_df['media'].iat[-1] < limite_t_mot else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT else 'rgba(100,00,00,0.2)'
 
 error_bar_t_mot_plotly = go.Scatter(
                                         x=t_mot_df['datetime'], 
@@ -653,11 +655,11 @@ t_oleo_df['10quartil'] = t_oleo_df['media']-t_oleo_df['10quartil']
 t_oleo_df['90quartil'] = -t_oleo_df['media']+t_oleo_df['90quartil']
 
 limite_t_oleo_array = np.empty(len(t_oleo_df.index))
-limite_t_oleo_array.fill(limite_t_oleo)
+limite_t_oleo_array.fill(UPPER_LIMIT_T_OIL)
 
 t_oleo_index = np.arange(1, len(t_oleo_media)+1, 1)
 
-color = 'rgba(00,100,00,0.12)' if t_oleo_df['media'].iat[-1] < limite_t_oleo else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL else 'rgba(100,00,00,0.2)'
 
 error_bar_t_oleo_plotly = go.Scatter(
                                         x=t_oleo_df['datetime'], 
@@ -712,7 +714,7 @@ t_ar_df['10quartil'] = t_ar_df['media']-t_ar_df['10quartil']
 t_ar_df['90quartil'] = -t_ar_df['media']+t_ar_df['90quartil']
 
 limite_t_ar_array = np.empty(len(t_ar_df.index))
-limite_t_ar_array.fill(limite_t_ar)
+limite_t_ar_array.fill(UPPER_LIMIT_T_AIR)
 
 t_ar_index = np.arange(1, len(t_ar_media)+1, 1)
 
@@ -754,7 +756,7 @@ air_fig.update_layout(height = 300,
                   plot_bgcolor=color)
 
 # TAB 1 (Sistema Completo) - Ajuste de Layout dos Gráficos
-color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < limite_t_ar and t_oleo_df['media'].iat[-1] < limite_t_oleo and t_mot_df['media'].iat[-1] < limite_t_mot) else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < UPPER_LIMIT_T_AIR and t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL and t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT) else 'rgba(100,00,00,0.2)'
 mcf_fig.update_layout(height = 400,
                   width = 600,
                   title='Mean Cumulative Function',
@@ -766,7 +768,7 @@ mcf_fig.update_layout(height = 400,
                   margin=dict(t=30, b=30),
                   plot_bgcolor=color)
 
-color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < limite_t_ar and t_oleo_df['media'].iat[-1] < limite_t_oleo and t_mot_df['media'].iat[-1] < limite_t_mot) else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < UPPER_LIMIT_T_AIR and t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL and t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT) else 'rgba(100,00,00,0.2)'
 intens.update_layout(height = 400,
                   width = 600,
                   title='Intensidade de Falhas Acumulada',
@@ -779,7 +781,7 @@ intens.update_layout(height = 400,
                   plot_bgcolor=color)
 
 # TAB 2 (Temperatura Motor) - Ajuste de Layout dos Gráficos
-color = 'rgba(00,100,00,0.12)' if (t_mot_df['media'].iat[-1] < limite_t_mot) else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if (t_mot_df['media'].iat[-1] < UPPER_LIMIT_T_MOT) else 'rgba(100,00,00,0.2)'
 mcf_fig_motor.update_layout(height = 400,
                   width = 600,
                   title='Mean Cumulative Function',
@@ -803,7 +805,7 @@ intens_motor.update_layout(height = 400,
                   plot_bgcolor=color)
 
 # TAB 3 (Temperatura Óleo) - Ajuste de Layout dos Gráficos
-color = 'rgba(00,100,00,0.12)' if (t_oleo_df['media'].iat[-1] < limite_t_oleo) else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if (t_oleo_df['media'].iat[-1] < UPPER_LIMIT_T_OIL) else 'rgba(100,00,00,0.2)'
 mcf_fig_oil.update_layout(height = 400,
                   width = 600,
                   title='Mean Cumulative Function',
@@ -827,7 +829,7 @@ intens_oil.update_layout(height = 400,
                   plot_bgcolor=color)
 
 # TAB 4 (Temperatura Ar) - Ajuste de Layout dos Gráficos
-color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < limite_t_ar) else 'rgba(100,00,00,0.2)'
+color = 'rgba(00,100,00,0.12)' if (t_ar_df['media'].iat[-1] < UPPER_LIMIT_T_AIR) else 'rgba(100,00,00,0.2)'
 mcf_fig_air.update_layout(height = 400,
                   width = 600,
                   title='Mean Cumulative Function',
@@ -853,7 +855,7 @@ intens_air.update_layout(height = 400,
 # Setup the style from the link:
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 # Embed the style to the dashabord:
-app = JupyterDash(__name__)
+app = dash.Dash(__name__)
 
 # TAB 1 (Sistema Completo)
 mcf_fig_graph = dcc.Graph(
@@ -1038,9 +1040,6 @@ def render_content(tab):
 #                 )
 
 def serve_layout():
-    # return html.Div(
-    #             children=[header, row1], style={"text-align": "center"},
-    #             )
     return tabs_dash
 
 app.layout = serve_layout

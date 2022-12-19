@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta, datetime
 import sqlalchemy as db
+import math
 
 # DASH and PLOTLY library
 import plotly.graph_objects as go
@@ -531,8 +532,29 @@ trace1 = go.Scatter(x=x_intens_oil, y=y_intens_oil, mode='lines', name='Intensid
 intens_oil = make_subplots()
 intens_oil.add_trace(trace1)
 
-# TAB 3 (Temperatura Óleo) - GRÁFICO DE CONFIABILIDADE,
-# TODO
+# TAB 3 (Temperatura Óleo) - GRÁFICO DE CONFIABILIDADE
+vals_oil=[]
+max_failure_oil = max(max(times))
+
+tn = max_failure_oil
+confiab_x_oil = np.linspace(0, 1000, 10000, endpoint=True)
+for t in confiab_x_oil:
+    p = math.exp((1/alpha**beta)*((-(tn+t)**beta)+tn**beta))
+    confiab_y_oil.append(p)
+    if np.round(p, 2) > 0.79 and np.round(p, 2) < 0.81:
+        confiab_x_oil_80_percent = t
+        confiab_y_oil_80_percent = y
+
+trace1 = go.Scatter(x=confiab_x_oil, y=confiab_y_oil, name='Real', mode='markers', marker=dict(color='black', size=4))
+trace2 = go.Scatter(x=confiab_x_oil, y=confiab_y_oil, mode = 'lines', name='Confiabilidade Óleo', line=dict(color='royalblue', width=1))
+trace3 = go.Scatter(x=x_upper_ci_air, y=y_upper_ci_air, mode = 'lines', name='Confiabilidade Óleo - 80% x', line=dict(color='royalblue', width=1, dash='dash'))
+trace3 = go.Scatter(x=x_upper_ci_air, y=y_upper_ci_air, mode = 'lines', name='Confiabilidade Óleo - 80% Y', line=dict(color='royalblue', width=1, dash='dash'))
+
+confiab_oil = make_subplots()
+confiab_oil.add_trace(trace1)
+confiab_oil.add_trace(trace2)
+confiab_oil.add_trace(fig.add_hline(y=confiab_y_oil_80_percent))
+confiab_oil.add_trace(fig.add_vline(x=confiab_x_oil_80_percent))
 
 # TAB 4 (Temperatura Ar) - MEAN CUMULATIVE FUNCTION
 times = [tempo_entre_falhas_acumulado_ar]
